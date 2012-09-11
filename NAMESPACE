@@ -1,0 +1,31 @@
+export(
+       add.test,
+       contingency.periodogram,
+       lin.order.cls,
+       lin.test,
+       ll.order,
+       lpx,
+       mkx,
+       portman.Q,
+       prediction.profile.ll,
+       spec.lomb,
+       specar.ci,
+       summary.lin.order,
+       summary.ll.order,
+       summary.lomb,
+       summary.specar.ci
+       )
+S3method(plot,contingency.periodogram)
+S3method(plot,lin.order)
+S3method(plot,ll.order)
+S3method(plot,lomb)
+S3method(plot,ppll)
+S3method(plot,specar.ci)
+S3method(print,ll.order)
+S3method(predict,ll.order)
+S3method(summary,lin.order)
+S3method(summary,ll.order)
+S3method(summary,lomb)
+S3method(summary,specar.ci)
+
+
