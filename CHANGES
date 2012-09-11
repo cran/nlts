@@ -1,3 +1,5 @@
+0.2-0: package no longer requires akima
+
 0.1-9: lin.order.mle and tfn removed because of lisencing issues 
 
 0.1-8: predict.ll.order added
