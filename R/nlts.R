@@ -1,5 +1,5 @@
 ##############################################################################################
-"contingency.periodogram" <- function(x, maxper = 6){
+"contingency.periodogram" <- function(x, maxper = 6, exact=FALSE){
 ##############################################################################################
 #contingency.periodogram is a funcion to estimate the contingency periodogram
 #of Pierre Legedre and Pierre Dutielle to test for periodicity in categorical time series.
@@ -26,7 +26,7 @@
         t2 <- t(1:i)
         kast <- (as.integer(n/i)) * i
         t3 <- cbind(as.factor(t1[1:kast]), as.factor(t2))
-        kji[i, 1] <- as.vector(fisher.test(table(t3[, 1], t3[, 2]))[1])$p.value
+        if(exact) kji[i, 1] <- as.vector(fisher.test(table(t3[, 1], t3[, 2]))[1])$p.value
         t4 <- chisq.test(table(t3[, 1], t3[, 2]))
         kji[i, 2] <- as.vector(t4$statistic)
         kji[i, 3] <- as.vector(t4$parameter)
@@ -189,8 +189,6 @@
 #CV    is cross-val error
 #GCV       is Generalized CV
 ############################################################################################
-    require(locfit)
-
     res<-as.data.frame(matrix(NA, ncol = 6, nrow = length(order)*length(bandwidth)))
     names(res) <- c("order", "CV", "GCV", "bandwidth", "df", "GCV.df")
 
@@ -329,8 +327,6 @@ lpx<-function (x, nn = 0, h = 0, adpen = 0, deg = 2, acri = "none",
 ##############################################################################################
 "predict.ll.order"<- function(object, ...){
 ##############################################################################################
-    require(locfit)
-
     object=object
     x=object$x
     ans <- as.data.frame(matrix(NA, ncol = 4, nrow = length(object$order)))
@@ -414,6 +410,36 @@ lpx<-function (x, nn = 0, h = 0, adpen = 0, deg = 2, acri = "none",
     plot(object$ppll$step, 1-object$ppll$CV, ylim=c(min(c(0,1-object$ppll$CV)), 1),
     xlab='prediction interval', ylab='predictability', type='b')
 }
+
+##############################################################################################
+ll.edm=function (x, order, bandwidth, len=NA, deg = 2){
+##############################################################################################
+    T <- length(x)
+    if(is.na(len)){len=T}
+    mu=mean(x[(order + 1):T])
+    sig=sqrt(var(x[(order + 1):T]))
+    cvseries <- (x - mu)/sig
+    ldata <- data.frame(mkx(cvseries, 1:order))
+    names(ldata)[order+1]="Y"
+    xnam=names(ldata)[1:order]
+
+    tmp <- eval(parse(text=paste("locfit(Y~lp(", paste(xnam, collapse= ','), ", deg = deg, h = bandwidth), kern = 'gauss', data=ldata)")))
+
+    pdata=ldata[1,1:order]
+    ptmp=predict(tmp, newdata=as.matrix(pdata))
+
+    sim=NA
+    sim[1]=ptmp
+    for(i in 2:len){
+    pdata=cbind(sim[i-1],pdata[1,1:(order-1)]) 
+    if(any(!is.finite(as.matrix(pdata)))){cat("Inf produced \n"); break}  
+    ptmp=predict(tmp, newdata=as.matrix(pdata))
+    sim[i]=ptmp
+    }
+    sim=sim*sig+mu
+return(sim)
+}
+
 
 ##############################################################################################
 spec.lomb <- function (y=stop("no data arg"), x=stop("no time arg"), freq=NULL){
@@ -516,7 +542,6 @@ list(period=object$per.max,p.val=object$p)
 #order    a number representing the order to be considered.
 #n.cond   is the number of observations to condition on (must be >= order).
 ##############################################################################################
-        require(acepack)
     resid.ace <- function(aceobj){
     aceobj$ty - apply(aceobj$tx, 1, sum)
     }
@@ -665,7 +690,6 @@ list(period=object$per.max,p.val=object$p)
 #         of the spectral powers
 #resamp$maxfreq    gives the full vector of output for the resampled max.frequencies
 ############################################################################################
-    require(stats)
     if(order == "aic") {
         s.ar <- ar(x, aic = TRUE)
         if(s.ar$order == 0) {

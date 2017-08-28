@@ -4,6 +4,7 @@ export(
        lin.order.cls,
        lin.test,
        ll.order,
+       ll.edm,
        lpx,
        mkx,
        portman.Q,
@@ -27,5 +28,28 @@ S3method(summary,lin.order)
 S3method(summary,ll.order)
 S3method(summary,lomb)
 S3method(summary,specar.ci)
+importFrom(acepack,ace)
+importFrom(stats,lm)
+importFrom(stats,pchisq)
+importFrom(stats,fisher.test)
+importFrom(stats,chisq.test)
+importFrom(stats,var)
+importFrom(stats,residuals)
+importFrom(stats,lm)
+importFrom(stats,pf)
+importFrom(locfit,locfit.raw)
+importFrom(locfit,dat)
+importFrom(stats,residuals)
+importFrom(graphics,plot)
+importFrom(graphics,lines)
+importFrom(stats,qchisq)
+importFrom(stats,acf)
+importFrom(stats,predict)
+importFrom(stats,ar)
+importFrom(stats,ar.mle)
+importFrom(stats,spec.ar)
+importFrom(stats,rnorm)
+importFrom(stats,quantile)
+importFrom(stats,rnorm)
 
 
