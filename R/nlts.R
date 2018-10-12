@@ -1,27 +1,38 @@
-##############################################################################################
-"contingency.periodogram" <- function(x, maxper = 6, exact=FALSE){
-##############################################################################################
-#contingency.periodogram is a funcion to estimate the contingency periodogram
-#of Pierre Legedre and Pierre Dutielle to test for periodicity in categorical time series.
-# I have coded it so as to provide both the Fisher exact test and the asymptotic chi-square.
-#
-#REFERENCE
-#Legendre et al. (1981) The contingency periodogram: A method for identifying rhytms in
-#   series of nonmetric ecological data. Journal of Ecology, 69, 965-979.
-#
-#REQUIRED ARGUMENTS
-#x         vector of length n representing the categorical time series.
-#maxper    the maximum lag (period) considered
-#
-#VALUE
-#an object is returned consisting of the following components:
-#the fischer exact test at each lag,
-#the asymtpotic chi-square value, associated d.f. and asymptotic p.val at each lag
-############################################################################################
+#' The contingency periodogram for periodicity in categorical time series
+#' 
+#' A function to estimate the contingency periodogram to test for periodicity in
+#' categorical time series.
+#' 
+#' This is the contingency periodogram of Pierre Legedre and Pierre Dutielle to
+#' test for periodicity in categorical time series. I have coded the function
+#' so as to provide both the Fisher exact test and the asymptotic chi-square
+#' test.
+#' 
+#' @param x A vector representing the categorical time series.
+#' @param maxper the maximum lag (period) considered.
+#' @param exact If TRUE the FISHER exact test is calculated
+#' @return An object of class "contingency.periodogram" is returned consisting
+#' of a matrix with a row for each period considered.  The columns are:
+#' \item{exact.p}{the Fisher exact test at each lag (if exact=TRUE).}
+#' \item{chi2}{the asymptotic chi-square value.} \item{df}{the chi-square
+#' degrees-of-freedom.} \item{asympt.p}{the chi-squared asymptotic p-value.}
+#' @references Legendre et al. (1981) The contingency periodogram: A method for
+#' identifying rhytms in series of nonmetric ecological data. Journal of
+#' Ecology, 69, 965-979. https://doi.org/10.2307/2259648
+#' @keywords ts
+#' @examples
+#'     data(plodia)
+#'     data<-as.factor((scale(plodia) > 0))
+#'     fit <- contingency.periodogram(data, maxper = 9) 
+#'     \dontrun{plot(fit)}
+#' @export
+#' @importFrom graphics lines plot 
+#' @importFrom stats acf ar ar.mle chisq.test fisher.test lm pchisq pf predict qchisq quantile residuals rnorm spec.ar var
+contingency.periodogram <- function(x, maxper = 6, exact=FALSE){
     t1 <- as.factor(x)
     n <- length(x)
     kji <- matrix(NA, nrow = maxper, ncol = 4)
-    dimnames(kji) <- list(c(1:maxper), c("exact.p", "chi-val", "df", "asympt.p"))
+    dimnames(kji) <- list(c(1:maxper), c("exact.p", "chi2", "df", "asympt.p"))
     for(i in 2:maxper) {
         t2 <- t(1:i)
         kast <- (as.integer(n/i)) * i
@@ -32,56 +43,76 @@
         kji[i, 3] <- as.vector(t4$parameter)
         kji[i, 4] <- as.vector(t4$p.value)
     }
-    res <- as.matrix(kji)
+    res <- as.matrix(kji[-1,])
     class(res) <- "contingency.periodogram"
     res
 }
 
 ##############################################################################################
-"plot.contingency.periodogram"<-function(x, ...){
+#' Plot contingency periodograms
+#' 
+#' `plot' method for "contingency.periodogram" class object.
+#' 
+#' 
+#' @param x an object of class "contingency.periodogram", usually, as a result
+#' of a call to \code{contingency.periodogram}.
+#' @param ... generic plot arguments.
+#' @return A contingency periodogram is plotted. The line represents the
+#' critical value based on the chi-squared test (95\%).
+#' @seealso \code{\link{contingency.periodogram}}
+#' @keywords ts
+#' @export
+plot.contingency.periodogram<-function(x, ...){
 ##############################################################################################
 #this is the generic plot function for contingency.periodogram objects
 ##############################################################################################
-    object<-x
-    n <- length(object[, 2])
-    plot(c(2:n), as.vector(object[2:n, 2]), type = "b", xlab = "period",
-        ylab = "chi-val")
+ args.default <- list(xlab = "Period", ylab = "Chi-squared value", 
+                  type="b")
+  args.input <- list(...)
+  args <- c(args.default[!names(args.default) %in% names(args.input)], args.input)
+  
+  do.call(plot, c(list(x = c(2:(nrow(x)+1)), y = x[,"chi2"]), args))
+    n <- nrow(x)
     lines(2:n, qchisq(0.95, 1:(n - 1)))
 }
 
+#' The order of a time series using cross-validation of the linear
+#' autoregressive model (conditional least-squares).
+#' 
+#' A function to estimate the order of a time series using cross-validation of
+#' the linear autoregressive model. Coefficients are estimated using
+#' conditional least-squares. I coded this functions to estimate the order of ecological time series.
+#' Bjornstad et al. (1998, 2001)
+#' 
+#' The time series is normalized prior to cross-validation.
+#' 
+#' Note that if the dynamics is highly nonlinear, the nonparametric
+#' order-estimators (\code{\link{ll.order}}) may be more appropriate.  (I coded
+#' this function to use for comparison with the nonparametric methods, because
+#' these also uses (nonlinear) conditional least-squares.)
+#' 
+#' @param x A time series without missing values
+#' @param order The candidate orders. The default is 1:5
+#' @param n.cond The number of observation to condition on.  The default is 5
+#' (must be >= max(order))
+#' @param echo if TRUE a counter for the data points and the orders is produced
+#' to monitor progress.
+#' @return An object of class "lin.order" is returned consisting of the
+#' following components: \item{order}{the grid of orders considered.}
+#' \item{CVd}{the cross-validation errors across the grid of orders.}
+#' @references Bjornstad, O.N., Begon, M., Stenseth, N. C., Falck, W., Sait, S. M. and Thompson, D. J. 1998. Population dynamics of the Indian meal moth: demographic stochasticity and delayed regulatory mechanisms. Journal of Animal Ecology 67:110-126. https://doi.org/10.1046/j.1365-2656.1998.00168.x
+#' Bjornstad, O.N., Sait, S.M., Stenseth, N.C., Thompson, D.J. & Begon, M. 2001. Coupling and the impact of specialised enemies on the dimensionality of prey dynamics. Nature 401: 1001-1006. https://doi.org/10.1038/35059003
+#' @seealso \code{\link{ll.order}}
+#' @keywords ts
+#' @examples
+#' 
+#'     data(plodia)
+#'     fit <- lin.order.cls(sqrt(plodia), order=1:5)
+#'     \dontrun{plot(fit)}
+#'     summary(fit)
+#' @export
+lin.order.cls <- function(x, order = 1:5, n.cond = 5, echo = TRUE){
 ##############################################################################################
-"lin.order.cls" <- function(x, order = 1:5, n.cond = 5, echo = TRUE){
-##############################################################################################
-#lin.order.cls is a function to estimate the order of a time series using cross-validation of
-#the linear autoregressive model. Coefficients are estimated using conditional least squares.
-#
-#DETAILS
-#The time series is normalized prior to cross-validation.
-#Note that if the dynamics is highly nonlinear, the nonparametric order selectors (ll.order or
-#   nw.order) may be more appropriate.
-#If dynamics is approximately linear lin.order.mle will have greater power (although it is
-#   a bit slower). I have coded this function to use for comparison with the nonparametric
-#   order selectors, because those uses (nonlinear) conditional least-squares.
-#
-#BACKGROUND
-#I coded this functions to estimate the order of ecological time series.
-#Bjornstad et al. (1998; Journal of Animal Ecology (1998) 67:110-126; see
-#               http://onb.ent.psu.edu/publ/plodia/plodia.pdf)
-#
-#REQUIRED ARGUMENTS
-#x        is a vector representing the time series. The data is scaled to
-#       unit variance prior to estimation
-#order    a vector representing the orders to be considered. The default is 1:5
-#n.cond   is the number of observations to condition on (must be >= maximum order).
-#       The default is 5.
-#echo     if TRUE a counter over the data points and the order
-#               is produced to monitor  progress.
-#
-#VALUE
-#an object of class lin.order.cls is returned consisting of the following components:
-#order     represents the search grid of orders
-#CVd       is the cross-validation errors across the grid of orders
-############################################################################################
     ans <- as.data.frame(matrix(NA, ncol = 2, nrow = length(order)))
     names(ans) <- c("order", "CVd")
     ans[, 1] <- order
@@ -104,9 +135,8 @@
             coef <- solve(t(dati[, (1:j)]) %*% dati[, (1:j)]) %*% t(dati[, (1:j)]) %*% dati[, (p + 1)]
             tpred <- t(xmat[i, 1:j]) %*% coef
             cv <- cv + (tpred - xmat[i, (p + 1)])^2
-            if(echo){ cat(i, " ")}
-        }
-        if(echo){cat("\n order ",j, " of ",p,"!\n")}
+            }
+        if(echo){cat("\n order ",j, " of ",p, "\r")}
         ans[[2]][j] <- cv/(n - n.cond)
     }
     class(ans) <- "lin.order"
@@ -115,7 +145,19 @@
 
 
 ##############################################################################################
-"summary.lin.order" <- function(object, ...){
+#' Summarize linear cross-validation for time-series order
+#' 
+#' `summary' method for class "lin.order".
+#' 
+#' 
+#' @param object an object of class "lin.order", usually, as a result of a call
+#' to \code{lin.order.cls} or \code{lin.order.mle}.
+#' @param \dots no other arguments currently allowed
+#' @return A slightly prettyfied version of the object is printed.
+#' @seealso \code{\link{lin.order.cls}}
+#' @keywords ts
+#' @export
+summary.lin.order <- function(object, ...){
 ##############################################################################################
 #this is the generic summary function for lin.order objects
 ##############################################################################################
@@ -126,69 +168,108 @@
     out
 }
 
-##############################################################################################
-"plot.lin.order" <- function(x, ...){
+
+#' Plot linear cross-validation for time-series order
+#' 
+#' `plot' method for class "lin.order".
+#' 
+#' 
+#' @param x an object of class "lin.order", usually, as a result of a call to
+#' \code{lin.order.cls} or \code{lin.order.mle}.
+#' @param ... generic plot arguments.
+#' @return A xy-plot of order against cross-validation error is produced.
+#' @seealso \code{\link{lin.order.cls}}
+#' @keywords ts
+#' @export
+plot.lin.order <- function(x, ...){
 ##############################################################################################
 #this is the generic plot function for lin.order objects
 ##############################################################################################
-    object<-x
-    plot(object$CVd ~ object$order, type = "b")
+args.default <- list(ylab = "Cross-validation error", xlab = "Order", 
+                       type="b")
+  args.input <- list(...)
+  args <- c(args.default[!names(args.default) %in% names(args.input)], args.input)
+  
+  do.call(plot, c(list(x = x$order, y = x$CVd), args))
 }
 
+#' Consistent nonlinear estimate of the order using local polynomial
+#' regression.
+#' 
+#' A function to estimate the order of a time series using the nonparametric
+#' order selection method of Cheng and Tong (1992, 1994) as modified by Yao &
+#' Tong (1994; see also Fan, Yao & Tong 1996).  The method uses leave-one-out
+#' cross-validation of the locally linear regression against lagged-abundances.
+#' 
+#' The time series is normalized prior to cross-validation.
+#' 
+#' A Gaussian kernel is used for the locally linear regression.
+#' 
+#' The bandwidth is optimized using cross-validation. If a single bandwidth is
+#' provided, no cross validation of bandwidth will be carried out. Highly
+#' nonlinear data will require more narrow bandwidths. If NA is returned it may
+#' be because the min bandwidth considered is too small relative to the density
+#' of data.
+#' 
+#' Missing values are NOT permitted.
+#' 
+#' If \code{deg} is set to 0, the order is estimated on the basis of the
+#' Nadaraya-Watson (locally constant) estimator of the conditional expectation
+#' against lagged-abundances (Cheng and Tong 1992, 1994). 
+#' 
+#' @param x A time series without missing values.
+#' @param order The candidate orders. The default is 1:5.
+#' @param step The time step for prediction.
+#' @param deg The degree of the local polynomial.
+#' @param bandwidth The candidate bandwidths to be considered.
+#' @param cv if TRUE leave-one-out cross-validation will be performed.
+#' @param echo if TRUE a counter shows the progress
+#' @return An object of class "ll.order" is returned consisting of the
+#' following components: \item{grid}{the grid of orders, bandwidths, and CV's.}
+#' \item{grid$order}{the orders.} \item{grid$CV}{the cross-validation score
+#' across the grid of orders and bandwidths. (If \code{cv = TRUE}).}
+#' \item{grid$GCV}{the generalized cross-validation score.}
+#' \item{grid$bandwidth}{the bandwidths.} \item{grid$df}{the degrees of freedom
+#' of the fitted model.}
+#' 
+#' \item{order}{the vector of orders considered.} \item{deg}{The degree of the
+#' local polynomial.}
+#' @references Cheng, B. & Tong, H. (1992) On consistent nonparametric order
+#' determination and chaos. Journal of Royal Statistical Society B, 54,
+#' 427-449.
+#' 
+#' Cheng, B. & Tong, H. (1994) Orthogonal projection, embedding dimension and
+#' sample size in chaotic time series from a statistical perspective.
+#' Philosophical Transactions of the Royal Society London, A. , 348, 325-341. https://doi.org/10.1098/rsta.1994.0094
+#' 
+#' Fan, J., Yao, Q., & Tong, H. (1996) Estimation of conditional densities and
+#' sensitivity measures in nonlinear dynamical systems. Biometrika, 83,
+#' 189-206. ttps://doi.org/10.1093/biomet/83.1.189
+#' 
+#' Yao, Q. & Tong, H. (1994) Quantifying the influence of initial values on
+#' non-linear prediction.  Journal of Royal Statistical Society B, 56, 701-725.
+#' 
+#' Bjornstad, O.N., Sait, S.M., Stenseth, N.C., Thompson, D.J., & Begon, M.
+#' (2001) Coupling and the impact of specialised enemies on the dimensionality
+#' of prey dynamics. Nature, 409, 1001-1006. https://doi.org/10.1038/35059003
+#' 
+#' Loader, C. (1999) Local Regression and Likelihood.  Springer, New York. https://doi.org/10.1007/b98858
+#' @keywords ts
+#' @examples
+#' 
+#'    data(plodia)
+#' 
+#'    fit <- ll.order(sqrt(plodia), order=1:3, bandwidth
+#'                = seq(0.5, 1.5, by = 0.5)) 
+#' 
+#'     \dontrun{plot(fit)}
+#' 
+#'     summary(fit)
+#' 
+#' @export
+#' @importFrom locfit locfit.raw dat
+ll.order<- function(x, order = 1:5, step=1, deg = 2, bandwidth = c(seq(0.3, 1.5, by = 0.1), 2:10), cv=TRUE, echo=TRUE){
 ##############################################################################################
-"ll.order"<- function(x, order = 1:5, step=1, deg = 2, bandwidth = c(seq(0.3, 1.5, by = 0.1), 2:10), cv=TRUE, echo=TRUE){
-##############################################################################################
-#ll.order is a function to estimate the order of a time series using the nonparametric order
-#selection method of Cheng and Tong (1992, 1994) as modified by Yao & Tong (1994;
-#see also Fan, Yao & Tong 1996). The method uses leave-one-out cross-validation of the
-#locally linear regression against lagged-abundances.
-#
-#DETAILS
-#The time series is normalized prior to cross-validation
-#A Gaussian kernel is used for the local regression.
-#The bandwidth is optimized using crossvalidation or GCV. If a single bandwidth
-#is provided, no cross validation of bandwidth will be carried out.
-#Highly nonlinear data will require more narrow bandwidths.
-#
-#If NA is returned it may be because the min bandwidth considered is too small
-#relative to density of data.
-#
-#STATISTICAL REFERENCES
-#Cheng and Tong (1992) On consistent nonparametric order determination and chaos.
-#   J Royal Statist Soc B, 54, 427-449.
-#Cheng and Tong (1994) Orthogonal projection, embedding dimension and sample size in
-#   chaotic time series from a statistical perspective.
-#   Phil Trans R Soc Lond A, 348, 325-341.
-#Yao and Tong (1994) Quantifying the influence of initial values on non-linear
-#   prediction. J Royal Statist Soc B, 56, 701-725.
-#Fan, Yao and Tong (1996) Estimation of conditional densities and sensitivity
-#   measures in nonlinear dynamical systems. Biometrika, 83, 189-206.
-#
-#BACKGROUND
-#Wilhelm Falck and I coded these functions to estimate the order of nonlinear
-#ecological time series.
-#Bjornstad et al. (1998; Journal of Animal Ecology (1998) 67:110-126; see
-#               http://onb.ent.psu.edu/publ/plodia/plodia.pdf)
-#Stenseth et al. (1998; Proceedings of the National Academy of Science USA
-#       (1997) 94:5147-5152; see
-#       http://onb.ent.psu.edu/publ/hare/hare.pdf)
-#
-#I'll try to keep an updated set of code at
-#http://onb.ent.psu.edu/
-#
-#REQUIRED ARGUMENTS
-#x         is a vector representing the time series.
-#order     a vector representing the orders to be considered. The default is 1:5
-#bandwidth  a vector representing the grid of bandwidth to be considered for the Gaussian
-#           product kernel.
-#
-#VALUE
-#an object of class ll.order is returned consisting of the following components:
-#grid      is the cross-validation errors across the grid of orders and bandwidths
-#order     is the raw grid of orders
-#CV    is cross-val error
-#GCV       is Generalized CV
-############################################################################################
     res<-as.data.frame(matrix(NA, ncol = 6, nrow = length(order)*length(bandwidth)))
     names(res) <- c("order", "CV", "GCV", "bandwidth", "df", "GCV.df")
 
@@ -232,7 +313,23 @@
     out
 }
 
-##############################################################################################
+#' Utility function
+#' 
+#' hack to make ll.order work with locfit >1.5. not to be called by the user.
+#' 
+#' not to be called by the user.
+#' 
+#' @param x \dots{}
+#' @param nn \dots{}
+#' @param h \dots{}
+#' @param adpen \dots{}
+#' @param deg \dots{}
+#' @param acri \dots{}
+#' @param scale \dots{}
+#' @param style \dots{}
+#' @keywords misc
+#' @author Catherine Loader
+#' @export
 lpx<-function (x, nn = 0, h = 0, adpen = 0, deg = 2, acri = "none",
     scale = FALSE, style = "none"){
 ##############################################################################################
@@ -253,8 +350,23 @@ lpx<-function (x, nn = 0, h = 0, adpen = 0, deg = 2, acri = "none",
     x
 }
 
-##############################################################################################
-"summary.ll.order" <- function(object, GCV=FALSE, ...){
+#' Summarize nonparametric cross-validation for time-series order
+#' 
+#' `summary' method for class "ll.order".
+#' 
+#' See \code{\link{ll.order}} for details.
+#' 
+#' @param object an object of class "ll.order", usually, as a result of a call
+#' to \code{ll.order}.
+#' @param GCV if TRUE (or if cross-validation was not done), uses GCV values.
+#' @param \dots no other arguments currently allowed
+#' @return A matrix summarizing the minimum cross-validation error (cv.min) and
+#' the associated Gaussian-kernel bandwidth (bandwidth.opt) and model
+#' degrees-of-freedom for each order considered.
+#' @seealso \code{\link{ll.order}}
+#' @keywords ts
+#' @export
+summary.ll.order <- function(object, GCV=FALSE, ...){
 ##############################################################################################
 #this is the generic summary function for ll.order objects
 ##############################################################################################
@@ -290,45 +402,92 @@ lpx<-function (x, nn = 0, h = 0, adpen = 0, deg = 2, acri = "none",
 }
 
 ##############################################################################################
-"plot.ll.order" <- function(x, ...){
+#' Plot nonparametric cross-validation for time-series order
+#' 
+#' `plot' method for class "ll.order".
+#' 
+#' See \code{\link{ll.order}} for details.
+#' 
+#' @param x an object of class "ll.order", usually, as a result of a call to
+#' \code{ll.order}.
+#' @param ... generic plot arguments.
+#' @return A xy-plot of minimum cross-validation error against order is
+#' produced.
+#' @seealso \code{\link{ll.order}}
+#' @keywords ts
+#' @export
+plot.ll.order <- function(x, ...){
 ##############################################################################################
 #this is the generic plot function for ll.order objects
 ##############################################################################################
-    object<-x
-    ans <- as.data.frame(matrix(NA, ncol = 2, nrow = length(object$order)))
+ args.default <- list(xlab = "Cross-validation error", ylab = "order", 
+                       type="b")
+  args.input <- list(...)
+  args <- c(args.default[!names(args.default) %in% names(args.input)], args.input)
+   ans <- as.data.frame(matrix(NA, ncol = 2, nrow = length(x$order)))
     names(ans) <- c("order", "cv.min")
-    order<-object$order
+    order<-x$order
     ans[, 1] <- order
     for(i in 1:length(order)) {
-        ans[i, 2] <- min(object$grid$CV[object$grid$order == i])
+        ans[i, 2] <- min(x$grid$CV[x$grid$order == i])
     }
-    plot(cv.min ~ order, data = ans, type = "b")
+    do.call(plot, c(list(x = ans$order, y = ans$cv.min), args))
 }
 
 ##############################################################################################
-"print.ll.order" <- function(x, verbose = FALSE, ...){
+#' Print nonparametric cross-validation for time-series order
+#' 
+#' `print' method for class "ll.order".
+#' 
+#' See \code{\link{ll.order}} for details.
+#' 
+#' @param x an object of class "ll.order", usually, as a result of a call to
+#' \code{ll.order}.
+#' @param verbose if TRUE provides a raw-printing of the object.
+#' @param \dots no other arguments currently allowed
+#' @return A matrix summarizing the minimum cross-validation error (cv.min) and
+#' the associated Gaussian-kernel bandwidth (bandwidth.opt) and model
+#' degrees-of-freedom for each order considered.
+#' @seealso \code{\link{ll.order}}
+#' @keywords ts
+#' @export
+print.ll.order <- function(x, verbose = FALSE, ...){
 ##############################################################################################
 #this is the generic print function for ll.order objects
 #
 #ARGUMENTS
 #verbose   if FALSE, summary is used. If TRUE, the raw list is echoed
 ##############################################################################################
-    object<-x
+    x
     if(!verbose) {
-    out <- summary(object)
+    out <- summary(x)
     print(out)
-    cat("\n\nFor a raw listing use print(object, verbose=TRUE)\n")
+    cat("\n\nFor a raw listing use print(x, verbose=TRUE)\n")
     }
     if(verbose) {
-        print.default(object)
+        print.default(x)
     }
 }
 
 ##############################################################################################
-"predict.ll.order"<- function(object, ...){
+#' Predict values from ll.order object.
+#' 
+#' Calculates the leave-one-out predicted values for the optimal ll.order
+#' object
+#' 
+#' See \code{\link{ll.order}} for details.
+#' 
+#' @param object an object of class "ll.order", usually, as a result of a call
+#' to \code{ll.order}.
+#' @param \dots no other arguments currently allowed
+#' @return A data frame with observed and predicted values for the optimal
+#' ll-model is returned.
+#' @seealso \code{\link{ll.order}}
+#' @keywords ts
+#' @export
+predict.ll.order<- function(object, ...){
 ##############################################################################################
-    object=object
-    x=object$x
+    x2=object$x
     ans <- as.data.frame(matrix(NA, ncol = 4, nrow = length(object$order)))
     names(ans) <- c("order", "cv.min", "bandwidth.opt", "df")
     ans[, 1] <- object$order
@@ -360,15 +519,15 @@ lpx<-function (x, nn = 0, h = 0, adpen = 0, deg = 2, acri = "none",
     deg=object$deg
     step=object$step
 
-    res<-data.frame(obs=x, pred=rep(NA, length(x)))
+    res<-data.frame(obs=x2, pred=rep(NA, length(x2)))
 
     bogrid<-expand.grid(bw, ord)
 
-    T <- length(x)
+    T <- length(x2)
 
-    tmu=mean(x[(max(ord) + 1):T])
-    tsd=sqrt(var(x[(max(ord) + 1):T]))
-    cvseries <- (x - tmu)/tsd
+    tmu=mean(x2[(max(ord) + 1):T])
+    tsd=sqrt(var(x2[(max(ord) + 1):T]))
+    cvseries <- (x2 - tmu)/tsd
     ldata<-mkx(cvseries, step:(ord+step-1))
 
     n<-dim(ldata)[1]
@@ -384,7 +543,48 @@ lpx<-function (x, nn = 0, h = 0, adpen = 0, deg = 2, acri = "none",
 }
 
 ##############################################################################################
-"prediction.profile.ll"<- function(x, step=1:10,order = 1:5, deg = 2, bandwidth = c(seq(0.3, 1.5, by = 0.1), 2:10)){
+#' Nonlinear forecasting at varying lags using local polynomial regression.
+#' 
+#' A wrapper function around \code{ll.order} to calculate prediction profiles
+#' (a la Sugihara and May 1990 and Yao and Tong 1994). The method uses
+#' leave-one-out cross-validation of the local regression (with CV optimized
+#' bandwidth) against lagged-abundances at various lags.
+#' 
+#' see \code{\link{ll.order}} for details.
+#' 
+#' @aliases prediction.profile.ll print.ppll
+#' @param x A time series without missing values.
+#' @param step The vector of time steps for forward prediction.
+#' @param order The candidate orders. The default is 1:5.
+#' @param deg The degree of the local polynomial.
+#' @param bandwidth The candidate bandwidths to be considered.
+#' @return An object of class "ppll" consisting of a list with the following
+#' components: \item{step}{the prediction steps considered.} \item{CV}{the
+#' cross-validation error.} \item{order}{the optimal order for each step.}
+#' \item{bandwidth}{the optimal bandwidth for each step.} \item{df}{the degrees
+#' of freedom for each step.}
+#' @seealso \code{\link{ll.order}}
+#' @references Sugihara, G., and May, R.M. (1990) Nonlinear forecasting as a
+#' way of distinguishing chaos from measurement error in time series. Nature
+#' 344, 734-741. https://doi.org/10.1038/344734a0
+#' 
+#' Yao, Q. and Tong, H. (1994) Quantifying the influence of initial values on
+#' non-linear prediction.  Journal of Royal Statistical Society B, 56, 701-725.
+#' 
+#' Fan, J., Yao, Q., and Tong, H. (1996) Estimation of conditional densities
+#' and sensitivity measures in nonlinear dynamical systems. Biometrika, 83,
+#' 189-206. https://doi.org/10.1093/biomet/83.1.189
+#' @keywords ts
+#' @examples
+#' 
+#'    data(plodia)
+#' 
+#'      fit <- prediction.profile.ll(sqrt(plodia), step=1:3, order=1:3,
+#'           bandwidth = seq(0.5, 1.5, by = 0.5))
+#' 
+#'     \dontrun{plot(fit)}
+#' @export
+prediction.profile.ll<- function(x, step=1:10,order = 1:5, deg = 2, bandwidth = c(seq(0.3, 1.5, by = 0.1), 2:10)){
 ##############################################################################################
     res<-as.data.frame(matrix(NA, ncol=5, nrow=length(step)))
     names(res)<- c("step", "CV", "order", "bandwidth", "df")
@@ -403,15 +603,71 @@ lpx<-function (x, nn = 0, h = 0, adpen = 0, deg = 2, acri = "none",
     return(res2)
 }
 
+#################################I############################################################
+#' Plot function for prediction profile objects
+#' 
+#' `plot' method for class "ppll".
+#' 
+#' See \code{\link{prediction.profile.ll}} for details.
+#' 
+#' @param x an object of class "ppll", usually, as a result of a call to
+#' \code{prediction.profile.ll}.
+#' @param ... generic plot arguments.
+#' @return A xy-plot of one minus the cross-validation error (i.e. the
+#' prediction accuracy against prediction time step.
+#' @seealso \code{\link{prediction.profile.ll}}
+#' @keywords ts
+#' @export
+plot.ppll<-function(x, ...){
 ##############################################################################################
-"plot.ppll"<-function(x, ...){
-##############################################################################################
-    object<-x
-    plot(object$ppll$step, 1-object$ppll$CV, ylim=c(min(c(0,1-object$ppll$CV)), 1),
-    xlab='prediction interval', ylab='predictability', type='b')
+args.default <- list(ylab = "Predictability", xlab = "Time lag", 
+                       type="b", ylim=c(min(c(0,1-x$ppll$CV)), 1))
+  args.input <- list(...)
+  args <- c(args.default[!names(args.default) %in% names(args.input)], args.input)
+  
+  do.call(plot, c(list(x = x$ppll$step, y = 1-x$ppll$CV), args))
 }
 
 ##############################################################################################
+#' Nonlinear forecasting of local polynomial `empirical dynamic model'.
+#' 
+#' A function to forcaste a local polynomial `empirical dynamic model'.
+#' 
+#' The function produces a nonlinear (nonparametric) forecast using the
+#' conditional mean method of Fan et al (1996). A Gaussian kernel is used for
+#' the local polynomial autoregression.
+#' 
+#' The bandwidth and order is best estimated with the
+#' \code{\link{ll.order}}-function.
+#' 
+#' Missing values are NOT permitted.
+#' 
+#' If \code{deg} is set to 0, the forecast uses the Nadaraya-Watson (locally
+#' constant) estimator of the conditional expectation against lagged-abundances.
+#' 
+#' @param x A time series without missing values.
+#' @param order The order for the nonparametric (local polynomial)
+#' autoregression.
+#' @param bandwidth The bandwidth for the nonparametric (local polynomial)
+#' autoregression.
+#' @param len The length of the predicted time-series. If NA the length of the
+#' training time series will be used.
+#' @param deg The degree of the local polynomial.
+#' @return A time series with the nonlinear (nonparametric) forecast is
+#' returned
+#' @seealso \code{\link{ll.order}}
+#' @references Fan, J., Yao, Q., & Tong, H. (1996) Estimation of conditional
+#' densities and sensitivity measures in nonlinear dynamical systems.
+#' Biometrika, 83, 189-206. https://doi.org/10.1093/biomet/83.1.189
+#' 
+#' Loader, C. (1999) Local Regression and Likelihood.  Springer, New York. https://doi.org/10.2307/1270956
+#' @keywords ts
+#' @examples
+#' 
+#'    data(plodia)
+#' 
+#'    sim1 <- ll.edm(sqrt(plodia), order=2, bandwidth = 1.5) 
+#' @export
 ll.edm=function (x, order, bandwidth, len=NA, deg = 2){
 ##############################################################################################
     T <- length(x)
@@ -442,32 +698,47 @@ return(sim)
 
 
 ##############################################################################################
+#' The Lomb periodogram for unevenly sampled data
+#' 
+#' The function to estimate the Lomb periodogram for a spectral analysis of
+#' unevenly sampled data.
+#' 
+#' This is the Lomb periodogram to test for periodicity in time series of
+#' unevenly sampled data.
+#' 
+#' Missing values should be deleted in both x and y before execution.
+#' 
+#' @param y vector of length n representing the unevenly sampled time series.
+#' @param x the a vector (of length n) representing the times of observation.
+#' @param freq the frequencies at which the periodogram is to be calculated. If
+#' NULL the canonical frequencies (the Fourier frequencies) are used.
+#' @return An object of class "lomb" is returned consisting of the following
+#' components: \item{freq}{the frequencies as supplied.} \item{spec}{the
+#' estimated amplitudes at the different frequencies.} \item{f.max}{the
+#' frequency of maximum amplitude.} \item{per.max}{the corresponding period of
+#' maximum amplitude.} \item{p}{the level of significance associated with the
+#' max period.}
+#' @references Lomb, N.R. (1976) Least-squares frequency-analysis of unequally
+#' spaced data. Astrophysics and Space Science 39, 447-462.
+#' @keywords ts
+#' @examples
+#' 
+#'    data(plodia)
+#' 
+#'     y <- sqrt(plodia)
+#'     x <- 1:length(y) 
+#' 
+#'     #make some missing values
+#'     y[10:19] <- NA; x[10:19] <- NA 
+#'     #omit NAs
+#'     y <- na.omit(y); x <- na.omit(x) 
+#' 
+#'     #the lomb p'gram
+#'     fit <- spec.lomb(y, x) 
+#'     summary(fit)
+#'     \dontrun{plot(fit)}
+#' @export
 spec.lomb <- function (y=stop("no data arg"), x=stop("no time arg"), freq=NULL){
-##############################################################################################
-#spec.lomb is a function to estimate the Lomb periodogram for peforming an spectral analysis
-#of unevenly sampled data.
-#
-#The following implentation is solely based on native Splus functions, it should therefore run
-#on  all platforms.
-#
-#The outer code is in public domain, many of the inner functions are part of S-plus (which
-#is not in public domain). Upon modifying the code, please comment it. My name should be
-#removed as appropriate. I would, of course, be grateful if you notify me about any
-#improvements made.
-#
-#REFERENCE
-#Lomb, N.R. 1976, Astrophysics and Space Science 39: 447-462
-#
-#REQUIRED ARGUMENTS
-#y         vector of length n representing the unevenly sampled time series
-#x         the a vector (of length n) representing the times of observation
-#freq      the frequencies at which the periodogram is to be calculated. If NULL
-#          the canonical frequncies are used
-#
-#VALUE
-#an object of class Lomb is returned consisting of the following components:
-#freq      the frequencies as supplied
-#spec      the estimated amplitudes at the different frequencies
 ##############################################################################################
   if(is.null(freq)){
     nyear <- max(x)-min(x)+1
@@ -519,13 +790,43 @@ spec.lomb <- function (y=stop("no data arg"), x=stop("no time arg"), freq=NULL){
 }
 
 ##############################################################################################
+#' Plot Lomb periodograms
+#' 
+#' `plot' method for objects of class "lomb".
+#' 
+#' 
+#' @param x an object of class "lomb", usually, as a result of a call to
+#' \code{spec.lomb}.
+#' @param ... generic plot arguments.
+#' @return A Lomb periodogram is composed of a xy-plot of amplitude against
+#' frequency.
+#' @seealso \code{\link{spec.lomb}}
+#' @keywords ts
+#' @export
 plot.lomb <- function(x, ...){
 ##############################################################################################
-object<-x
-plot(object$freq,object$spec, type="l", xlab="frequency", ylab="amplitude")
+args.default <- list(xlab = "Frequency", ylab = "Amplitude", 
+                       type="l")
+  args.input <- list(...)
+  args <- c(args.default[!names(args.default) %in% names(args.input)], args.input)
+  
+  do.call(plot, c(list(x = x$freq, y = x$spec), args))
 }
 
 ##############################################################################################
+#' Summarizes Lomb periodograms
+#' 
+#' `summary' method for objects of class "lomb".
+#' 
+#' 
+#' @param object an object of class "lomb", usually, as a result of a call to
+#' \code{spec.lomb}.
+#' @param ... generic plot arguments.
+#' @return A list summarizing the analysis is printed: \item{period}{the
+#' dominant period.} \item{p.val}{the p.value.}
+#' @seealso \code{\link{spec.lomb}}
+#' @keywords ts
+#' @export
 summary.lomb <- function(object, ...){
 ##############################################################################################
 list(period=object$per.max,p.val=object$p)
@@ -533,14 +834,41 @@ list(period=object$per.max,p.val=object$p)
 
 
 ##############################################################################################
-"add.test"<-function(x, order, n.cond = FALSE){
-##############################################################################################
-#Chen et al's (1995) Lagrange multiplier test for additivity.
-#
-#ARGUMENTS
-#x        is a vector representing the time series.
-#order    a number representing the order to be considered.
-#n.cond   is the number of observations to condition on (must be >= order).
+#' Lagrange multiplier test for additivity in a timeseries
+#' 
+#' add.test is a function to test the permissibility of the additive
+#' autoregressive model:
+#' 
+#' N(t) = f1(N(t-1)) + f2(N(t-2)) + ... + fd(N(t-d)) + e(t )
+#' 
+#' against the alternative:
+#' 
+#' N(t) = F(N(t-1), N(t-2), ..., N(t-d)) + e(t)
+#' 
+#' This is the Lagrange multiplier test for additivity developed by Chen et al.
+#' (1995: test II).
+#' 
+#' @param x A time series (vector without missing values).
+#' @param order a scalar representing the order to be considered.
+#' @param n.cond The number of observation to condition on.  The default is
+#' \code{order} (must be >= \code{order})
+#' @return a vector is returned consisting of the asymtpotic chi-square value,
+#' the associated d.f.  and asymptotic p.val for the test of additivity.
+#' @references Chen, R., Liu, J.S. & Tsay, R.S. (1995) Additivity tests for
+#' nonlinear autoregression. Biometrika, 82, 369-383. https://doi.org/10.1093/biomet/82.2.369
+#' 
+#' Bjornstad, O.N., Begon, M., Stenseth, N.C., Falck, W., Sait, S.M., &
+#' Thompson, D.J. (1998) Population dynamics of the Indian meal moth:
+#' demographic stochasticity and delayed regulatory mechanisms. Journal of
+#' Animal Ecology, 67, 110-126. https://doi.org/10.1046/j.1365-2656.1998.00168.x
+#' @keywords ts
+#' @examples
+#' 
+#'      data(plodia)
+#'      add.test(sqrt(plodia), order = 3)
+#' @export
+#' @importFrom acepack ace
+add.test<-function(x, order, n.cond = FALSE){
 ##############################################################################################
     resid.ace <- function(aceobj){
     aceobj$ty - apply(aceobj$tx, 1, sum)
@@ -581,13 +909,34 @@ list(period=object$per.max,p.val=object$p)
 
 
 ##############################################################################################
-"lin.test" <- function(x, order){
-##############################################################################################
-#Tsay's (1986) Tukey one-degree-of-freedom test for linearity.
-#
-#ARGUMENTS
-#x        is a vector representing the time series.
-#order    a number representing the order to be considered.
+#' A Tukey one-degree-of-freedom test for linearity in time series.
+#' 
+#' a function to test the permissibility of the linear autoregressive model:
+#' 
+#' N(t) = a0 + a1N(t-1) + a2N(t-2) + ... + adN(t-d) + e(t )
+#' 
+#' against the alternative:
+#' 
+#' Nt = F(N(t-1), N(t-2), ..., N(t-d)) + e(t)
+#' 
+#' This is the Tukey one-degree-of-freedom test of linearity developed by Tsay
+#' (1986). Orders up to 5 is permissible. [although the code is easily
+#' extended].
+#' 
+#' @param x A time series (vector without missing values).
+#' @param order a scalar representing the order to be considered.
+#' @return A vector is returned consisting of the asymtpotic F-value, the
+#' associated numerator and denominator d.f.'s and asymptotic p.val for the
+#' test of linearity
+#' @references Tsay, R.S. (1986) Nonlinearity tests for time series.
+#' Biometrika, 73, 461-466. https://doi.org/10.1093/biomet/73.2.461
+#' @keywords ts
+#' @examples
+#' 
+#'    data(plodia)
+#'    lin.test(sqrt(plodia), order = 3)
+#' @export
+lin.test <- function(x, order){
 ##############################################################################################
     nx <- length(x)
     Y <- matrix(0, (nx - order), (order + 1))
@@ -621,13 +970,31 @@ list(period=object$per.max,p.val=object$p)
 }
 
 ##############################################################################################
-"portman.Q" <- function(x, K){
-##############################################################################################
-#Ljung-Box test for whiteness of a time series
-#
-#ARGUMENTS
-#x        is a vector representing the time series.
-#K        the number of lags in the ACF to be included.
+#'  Ljung-Box test for whiteness in a time series.
+#' 
+#' portman.Q uses the cummulative ACF to test for whiteness of a time series.
+#' 
+#' This is the Ljung-Box version of the the Portemanteau test for whiteness
+#' (Tong 1990). It may in particular be usefull to test for whiteness in the
+#' residuals from time series models.
+#' 
+#' @param x A time series (vector without missing values).
+#' @param K the maximum lag of the ACF to be used in the test.
+#' @return A vector is returned consisting of the asymtpotic chi-square value,
+#' the associated d.f. and asymptotic p.val for the test of whiteness.
+#' @references Tong, H. (1990) Non-linear time series : a dynamical system
+#' approach. Clarendon Press, Oxford.
+#' @keywords ts
+#' @examples
+#' 
+#'    data(plodia)
+#' 
+#'    portman.Q(sqrt(plodia), K = 10) 
+#' 
+#'    fit <- ar(sqrt(plodia)) 
+#'    portman.Q(na.omit(fit$resid), K = 10) 
+#' @export
+portman.Q <- function(x, K){
 ##############################################################################################
     Q <- 0
     n <- length(x)
@@ -640,56 +1007,50 @@ list(period=object$per.max,p.val=object$p)
 }
 
 ##############################################################################################
-"specar.ci" <- function(x, order, resamp = 500, nfreq = 100, echo = TRUE){
+#' Confidence interval for the ar-spectrum and the dominant period.
+#' 
+#' A function to estimate a "confidence interval" for the power spectrum and in
+#' particular a confidence interval for the dominant period. The function uses
+#' resampling of the autoregressive parameters to attain the estimate.
+#' 
+#' A "confidence interval" for the periodogram is obtained by resampling the
+#' ar-coefficients using the variance-covariance matrix from the ar.mle object.
+#' 
+#' If a zero'th order process is chosen by using the AIC criterion, a first
+#' order process will be used.
+#' 
+#' If the dynamics is highly nonlinear, the parametric estimate of the power
+#' spectrum may be inappropriate.
+#' 
+#' @param x A time series without missing values.
+#' @param order a scalar representing the order to be considered. If
+#' \code{"aic"} the orderis be selected automatically using the AIC criterion.
+#' @param resamp the number of resamples of the ar-coefficients from the
+#' covariance matrix.
+#' @param nfreq the number of points at which to save the value for the power
+#' spectrum (and confidence envelope).
+#' @param echo If \code{TRUE}, a counter for each nrun shows the progress.
+#' @return An object of class "specar.ci" is returned consisting of the
+#' following components: \item{order}{the ar-order.} \item{spectrum$freq}{the
+#' spectral frequencies.} \item{spectrum$spec}{the estimated power-spectrum of
+#' the data.} \item{resamp$spectrum}{gives the quantile summary for the
+#' resampling distribution of the spectral powers.} \item{resamp$maxfreq}{the
+#' full vector of output for the resampled max.frequencies.}
+#' @seealso \code{\link{plot.specar.ci}} \code{\link{summary.specar.ci}}
+#' @keywords ts
+#' @examples
+#' 
+#'    data(plodia)
+#' 
+#' 
+#'     fit <- specar.ci(sqrt(plodia), order=3, resamp=10) 
+#' 
+#'     \dontrun{plot(fit, period=FALSE)}
+#' 
+#'     summary(fit)
+#' @export
+specar.ci <- function(x, order, resamp = 500, nfreq = 100, echo = TRUE){
 ##############################################################################################
-#specar.ci is a funcion to estimate a confidence interval for the power spectrum and
-#in particular a confidence interval for the dominant period.
-#The function uses a parametric ar-model to attain the estimate -- using the native
-#S-plus spec.ar function. A confidence interval is obtained by resampling the ar-coefficients
-#using the variance-covariance matrix from the arima.mle object.
-#
-#BACKGROUND
-#I coded this function to assess whether a virus altered the natural period of a cyclic host
-#species:
-#Bjornstad et al. (1998; Journal of Animal Ecology (1998) 67:110-126; see
-#               http://onb.ent.psu.edu/publ/plodia/plodia.pdf)
-#
-#The following implentation is solely based on native Splus functions, it should therefore run
-#on  all platforms. The drawback is that it may be slow.
-#
-#I've commented the code crudely to make everything as transparent as possible. I'd greatly
-#appreciate any comment or suggestion (onb1@psu.edu). I know the code can be
-#optimized greatly, but i'm not a programmer. I'll try to keep an updated set of code at
-#http://onb.ent.psu.edu/software.html.
-#
-#The outer code is in public domain, many of the inner functions are part of S-plus (which
-#is not in public domain). Upon modifying the code, please comment it. My name should be
-#removed as appropriate. I would, of course, be grateful if you notify me about any
-#improvements made.
-#
-#REQUIRED ARGUMENTS
-#x         vector of length n representing the time series. The data will be scaled to
-#       unit variance prior to estimation
-#order     the order to be used for the ar model. If "aic" is used, the order will
-#             be selected automatically using the AIC criterion. Note that if
-#             a zero'th order process is chosen by the aic, a first order process
-#         will be used.
-#resamp      is the number of resamples of the ar-coefficients from the var-covar matrix
-#nfreq     is the number of points at which to save the value for the power spectrum (and
-#             confidence envelope).
-#echo      if True, a counter for each resamp shows the progress.
-#
-#VALUE
-#an object of class specar.ci is returned consisting of the following components:
-#order     is the ar-order
-#spectrum  $freq is the the spectral frequencies
-#          $spec is the estimated power-spectrum of the data (in decibel)
-#          $maxfreq is the frequency of maximum power of the data
-#resamp    is the summary across the resamples
-#resamp$spectrum   gives the quantile summary for the resampling distribution of
-#         of the spectral powers
-#resamp$maxfreq    gives the full vector of output for the resampled max.frequencies
-############################################################################################
     if(order == "aic") {
         s.ar <- ar(x, aic = TRUE)
         if(s.ar$order == 0) {
@@ -724,7 +1085,7 @@ list(period=object$per.max,p.val=object$p)
         trekk[i,  ] <- s.ar.mle3$spec
         maxfreq[i] <- s.ar.mle3$freq[match(max(s.ar.mle3$spec), s.ar.mle3$spec)]
         if(echo) {
-            cat(i, "\n")
+            cat(i, "\r")
         }
     }
     trekk <- apply(trekk, 2, quantile, probs = c(0, 0.025, 0.05, 0.1, 0.25, 0.5, 0.75, 0.9,
@@ -738,9 +1099,23 @@ list(period=object$per.max,p.val=object$p)
     res
 }
 
-
 ##############################################################################################
-"summary.specar.ci" <- function(object, period = TRUE, ...){
+#' Summarize ar-spectra with CI's
+#' 
+#' `summary' method for objects of class "specar.ci".
+#' 
+#' 
+#' @param object an object of class "specar.ci", usually, as a result of a call
+#' to \code{specar.ci}.
+#' @param period If TRUE the summary is given in terms of the period, if false
+#' it is in terms of the frequency
+#' @param ... generic plot arguments.
+#' @return A list summarizing the analysis is printed: \item{period}{the
+#' dominant period.} \item{p.val}{the p.value.}
+#' @seealso \code{\link{specar.ci}}
+#' @keywords ts
+#' @export
+summary.specar.ci <- function(object, period = TRUE, ...){
 ##############################################################################################
 #this is the generic summary function for specar.ci objects
 #
@@ -765,37 +1140,84 @@ list(period=object$per.max,p.val=object$p)
 }
 
 ##############################################################################################
-"plot.specar.ci" <- function(x, period = TRUE, ...){
+#' Plot ar-spectra with CI's
+#' 
+#' `plot' method for class "specar.ci".
+#' 
+#' 
+#' @param x an object of class "specar.ci", usually, as a result of a call to
+#' \code{\link{specar.ci}}.
+#' @param period if TRUE x-axis is period, if FALSE frequency.
+#' @param ... generic plot arguments.
+#' @return A xy-plot of amplitude against period (or frequency).
+#' @seealso \code{\link{specar.ci}}
+#' @keywords ts
+#' @importFrom grDevices gray
+#' @importFrom graphics polygon
+#' @export
+plot.specar.ci <- function(x, period = TRUE, ...){
 ##############################################################################################
 #this is the generic plot function for specar.ci objects
 #
 #ARGUMENTS
 #period    if T, the summary is in terms of period (=1/freq) rather than frequency
 ##############################################################################################
-    object<-x
+           n <- length(x$spectrum$freq)
+ 
     if(period == TRUE) {
-            n <- length(object$spectrum$freq)
-            plot((1/object$spectrum$freq)[2:n], (object$spectrum$spec)[
-                2:n], ylim = range(object$resamp$spectrum[c(2, 10), 2:n]),
-                xlab = "period", ylab = "amplitude", type = "l")
-            lines((1/object$spectrum$freq)[2:n], object$resamp$spectrum[
-                "0.025", 2:n])
-            lines((1/object$spectrum$freq)[2:n], object$resamp$spectrum[
-                "0.975", 2:n])
-    }
+args.default <- list(xlab = "Period", ylab = "Amplitude", ylim = range(x$resamp$spectrum[c(2, 10), 2:n]),
+                type = "l")
+  args.input <- list(...)
+  args <- c(args.default[!names(args.default) %in% names(args.input)], args.input)
+  x2=1/x$spectrum$freq[2:n]
+}  
+
     if(period == FALSE) {
-            n <- length(object$spectrum$freq)
-            plot(object$spectrum$freq, object$spectrum$spec, ylim =
-                range(object$resamp$spectrum[c(2, 10),  ]), xlab =
-                "frequency", ylab = "amplitude", type = "l")
-            lines(object$spectrum$freq, object$resamp$spectrum["0.025",
-                ])
-            lines(object$spectrum$freq, object$resamp$spectrum["0.975",
-                ])
-    }
+args.default <- list(xlab = "Frequency", ylab= "Amplitude", ylim = range(x$resamp$spectrum[c(2, 10), 2:n]),
+                 type = "l")
+   args.input <- list(...)
+  args <- c(args.default[!names(args.default) %in% names(args.input)], args.input)
+  x2=x$spectrum$freq[2:n]
+}  
+
+do.call(plot, c(list(x = x2, y = x$spectrum$spec[2:n]), args))
+  if(period==TRUE){
+      polygon(c(1/x$spectrum$freq[2:n], rev(1/x$spectrum$freq[2:n])), 
+            c(x$resamp$spectrum[
+                "0.025", 2:n], 
+              rev(x$resamp$spectrum[
+                "0.975", 2:n])), col = gray(0.8), 
+            lty = 0)
+     lines(x2, x$spectrum$spec[2:n]) 
+   }
+  if(period==FALSE){
+     polygon(c(x$spectrum$freq[2:n], rev(x$spectrum$freq[2:n])), 
+            c(x$resamp$spectrum[
+                "0.025", 2:n], 
+              rev(x$resamp$spectrum[
+                "0.975", 2:n])), col = gray(0.8), 
+            lty = 0)
+     lines(x2, x$spectrum$spec[2:n]) 
+  }
 }
 
 ##############################################################################################
+#' Utility function
+#' 
+#' A function to create matrix of lagged time series.  Called by various
+#' functions.
+#' 
+#' If lags is \code{c(1,4)}, say, then the function returns a matrix that
+#' consist of columns x(t-1), x(t-4), x(t).
+#' 
+#' @param x A univariate time series.
+#' @param lags The vector of time lags.
+#' @return A matrix of lagged abundances. The last column is the current
+#' @author Upmanu Lall
+#' @references Lall, U. & Sharma, A. (1996) A nearest neighbor
+#' bootstrap for time series resampling. Water Resources Research, 32, 679-693. https://doi.org/10.1029/95wr02966
+#' @keywords misc
+#' @export
 mkx<-function(x, lags){
 ##############################################################################################
 # U. Lall and A. Sharma - Lall, U. & Sharma, A. (1996) A nearest neighbor
